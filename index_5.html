@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TRACE — 실종자 실시간 동선 예측 시스템</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0f0a;
+  --bg2: #0f160f;
+  --bg3: #141f14;
+  --surface: #1a251a;
+  --border: #2a3a2a;
+  --accent: #4ade80;
+  --accent2: #86efac;
+  --danger: #f87171;
+  --amber: #fbbf24;
+  --blue: #60a5fa;
+  --purple: #a78bfa;
+  --text: #e2f0e2;
+  --text2: #8fa88f;
+  --text3: #4a6a4a;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-main: 'Noto Sans KR', sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--font-main);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* HEADER */
+.header{background:var(--bg2);border-bottom:1px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--accent);letter-spacing:2px}
+.logo span{color:var(--text2);font-size:11px;margin-left:10px;font-weight:400;letter-spacing:1px}
+.header-right{display:flex;align-items:center;gap:16px}
+.timer-wrap{background:rgba(248,113,113,0.1);border:1px solid rgba(248,113,113,0.3);border-radius:6px;padding:6px 14px;display:flex;align-items:center;gap:8px}
+.timer-label{font-family:var(--font-mono);font-size:10px;color:var(--danger);text-transform:uppercase;letter-spacing:1px}
+.timer-val{font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--danger)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+.status-dot.live{background:var(--accent);box-shadow:0 0 8px var(--accent);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.status-txt{font-family:var(--font-mono);font-size:10px;color:var(--text2);letter-spacing:1px}
+
+/* LAYOUT */
+.main{display:grid;grid-template-columns:300px 1fr 260px;flex:1;min-height:0;gap:0}
+
+/* LEFT PANEL */
+.left{background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;gap:0;height:100%}
+.panel-section{border-bottom:1px solid var(--border);padding:16px}
+.section-title{font-family:var(--font-mono);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px}
+
+.upload-zone{border:1px dashed var(--border);border-radius:6px;padding:18px;text-align:center;cursor:pointer;transition:.2s;background:var(--bg3)}
+.upload-zone:hover{border-color:var(--accent);background:rgba(74,222,128,0.05)}
+.upload-icon{font-size:24px;margin-bottom:6px}
+.upload-txt{font-size:11px;color:var(--text2);line-height:1.6}
+.upload-sub{font-size:10px;color:var(--text3);margin-top:4px}
+
+.btn{width:100%;padding:9px;border-radius:6px;border:1px solid var(--accent);background:rgba(74,222,128,0.08);color:var(--accent);font-family:var(--font-mono);font-size:11px;cursor:pointer;letter-spacing:1px;transition:.2s;margin-top:8px}
+.btn:hover{background:rgba(74,222,128,0.18)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-danger{border-color:var(--danger);color:var(--danger);background:rgba(248,113,113,0.08)}
+.btn-danger:hover{background:rgba(248,113,113,0.18)}
+
+.progress-wrap{margin-top:8px;display:none}
+.progress-label{font-family:var(--font-mono);font-size:10px;color:var(--text2);margin-bottom:4px}
+.progress-bar{height:3px;background:var(--bg3);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:2px;transition:width .3s;width:0%}
+
+.ai-result{display:none;margin-top:10px}
+.result-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--border)}
+.result-row:last-child{border-bottom:none}
+.rl{font-size:10px;color:var(--text3);font-family:var(--font-mono)}
+.rv{font-size:11px;font-weight:500;color:var(--text)}
+.rv.warn{color:var(--danger)}
+.rv.ok{color:var(--accent)}
+
+.field-group{margin-bottom:10px}
+.field-label{font-size:10px;color:var(--text2);margin-bottom:4px;font-family:var(--font-mono)}
+.field-val{font-size:11px;color:var(--text);font-weight:500}
+input[type=range]{width:100%;accent-color:var(--accent);cursor:pointer}
+.range-row{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10px;color:var(--text3);margin-top:2px}
+
+/* TOGGLE ROW */
+.toggle-row{display:flex;flex-wrap:wrap;gap:4px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.tog{font-family:var(--font-mono);font-size:10px;padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:transparent;color:var(--text3);cursor:pointer;letter-spacing:.5px;transition:.2s}
+.tog.on{border-color:var(--accent);color:var(--accent);background:rgba(74,222,128,0.1)}
+.tog.on.amber{border-color:var(--amber);color:var(--amber);background:rgba(251,191,36,0.1)}
+.tog.on.blue{border-color:var(--blue);color:var(--blue);background:rgba(96,165,250,0.1)}
+.tog.on.purple{border-color:var(--purple);color:var(--purple);background:rgba(167,139,250,0.1)}
+
+/* MAP CENTER */
+.center{position:relative;overflow:hidden;background:#0d140d;display:flex;flex-direction:column}
+canvas#map{display:block;width:100%;flex:1;min-height:0;cursor:crosshair}
+.map-hint{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);background:rgba(10,15,10,0.85);border:1px solid var(--border);border-radius:6px;padding:6px 14px;font-family:var(--font-mono);font-size:10px;color:var(--text2);letter-spacing:1px;pointer-events:none;white-space:nowrap}
+
+/* RIGHT PANEL */
+.right{background:var(--bg2);border-left:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column;gap:0;height:100%}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:12px}
+.stat{background:var(--bg3);border-radius:6px;padding:10px;border:1px solid var(--border)}
+.stat-label{font-family:var(--font-mono);font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.stat-val{font-family:var(--font-mono);font-size:16px;font-weight:600;color:var(--accent)}
+.stat-val.danger{color:var(--danger)}
+.stat-val.amber{color:var(--amber)}
+
+.diff-list{padding:12px;display:flex;flex-direction:column;gap:6px}
+.diff-item{display:flex;gap:8px;align-items:flex-start;padding:8px;background:var(--bg3);border-radius:5px;border:1px solid var(--border)}
+.diff-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;margin-top:4px}
+.diff-txt{font-size:11px;color:var(--text2);line-height:1.5}
+
+.report-list{padding:12px;display:flex;flex-direction:column;gap:4px;max-height:160px;overflow-y:auto}
+.report-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;background:var(--bg3);border-radius:4px;font-family:var(--font-mono);font-size:10px;border:1px solid var(--border)}
+.report-coord{color:var(--purple)}
+.report-time{color:var(--text3)}
+
+.legend-grid{padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.lg{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2)}
+.ld{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+.info-bar{padding:10px 16px;background:rgba(96,165,250,0.08);border-top:1px solid var(--border);font-size:11px;color:var(--blue);line-height:1.6;font-family:var(--font-mono)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div style="display:flex;align-items:center;gap:16px">
+    <div class="logo">TRACE <span>실종자 실시간 동선 예측</span></div>
+    <div style="display:flex;align-items:center;gap:6px">
+      <div class="status-dot" id="status-dot"></div>
+      <span class="status-txt" id="status-txt">STANDBY</span>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="timer-wrap">
+      <span class="timer-label">골든타임</span>
+      <span class="timer-val" id="timer">--:--:--</span>
+    </div>
+    <div style="font-family:var(--font-mono);font-size:10px;color:var(--text2)">이문동, 동대문구 · DEMO</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- LEFT -->
+  <div class="left">
+    <div class="panel-section">
+      <div class="section-title">CCTV 영상 입력</div>
+      <div class="upload-zone" onclick="startAnalyze()">
+        <div class="upload-icon">📹</div>
+        <div class="upload-txt">마지막 목격 영상 업로드</div>
+        <div class="upload-sub">.mp4 .avi .jpg .png</div>
+      </div>
+      <button class="btn" onclick="startAnalyze()" id="btn-analyze">▶ AI 분석 시작</button>
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-label" id="progress-label">보행 패턴 분석 중...</div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
+      <div class="ai-result" id="ai-result">
+        <div style="font-family:var(--font-mono);font-size:10px;color:var(--accent);margin-bottom:8px">✓ 분석 완료</div>
+        <div class="result-row"><span class="rl">신장</span><span class="rv" id="r-height">—</span></div>
+        <div class="result-row"><span class="rl">보폭</span><span class="rv" id="r-stride">—</span></div>
+        <div class="result-row"><span class="rl">이동속도</span><span class="rv" id="r-speed">—</span></div>
+        <div class="result-row"><span class="rl">보행패턴</span><span class="rv warn" id="r-gait">—</span></div>
+        <div class="result-row"><span class="rl">체형</span><span class="rv" id="r-build">—</span></div>
+        <div class="result-row"><span class="rl">이동방향</span><span class="rv ok" id="r-dir">—</span></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">경과 시간</div>
+      <div class="field-group">
+        <div class="field-label">실종 후 경과 <span id="hr-val" style="color:var(--accent)">2시간</span></div>
+        <input type="range" id="s-hr" min="1" max="12" value="2" step="1" oninput="onHrChange(this.value)">
+        <div class="range-row"><span>1h</span><span>6h</span><span>12h</span></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">제보 관리</div>
+      <div style="font-size:11px;color:var(--text2);margin-bottom:8px;line-height:1.6">지도를 클릭하면 목격 제보가 추가됩니다. 제보가 쌓일수록 예측 경로가 수렴합니다.</div>
+      <button class="btn btn-danger" onclick="clearReports()">✕ 제보 초기화</button>
+    </div>
+
+    <div class="panel-section" style="flex:1">
+      <div class="section-title">케이스 선택</div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button class="btn" onclick="loadCase(0)" id="case-0" style="text-align:left">치매 노인 (절뚝거림)</button>
+        <button class="btn" onclick="loadCase(1)" id="case-1" style="text-align:left">가출 청소년 (정상 보행)</button>
+        <button class="btn" onclick="loadCase(2)" id="case-2" style="text-align:left">지적 장애인 (짧은 보폭)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CENTER MAP -->
+  <div class="center">
+    <div class="toggle-row">
+      <div class="tog on" id="tog-general" onclick="toggleLayer('general')">일반 예측</div>
+      <div class="tog on amber" id="tog-custom" onclick="toggleLayer('custom')">맞춤 예측</div>
+      <div class="tog" id="tog-search" onclick="toggleLayer('search')">수색대 배치</div>
+      <div class="tog" id="tog-report" onclick="toggleLayer('report')">목격 제보</div>
+    </div>
+    <canvas id="map"></canvas>
+    <div class="map-hint" id="map-hint">분석 시작 후 지도를 클릭해 목격 제보를 추가하세요</div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="right">
+    <div class="panel-section">
+      <div class="section-title">예측 통계</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat"><div class="stat-label">일반 반경</div><div class="stat-val danger" id="st-gen">—</div></div>
+      <div class="stat"><div class="stat-label">맞춤 반경</div><div class="stat-val" id="st-cus">—</div></div>
+      <div class="stat"><div class="stat-label">회피 구역</div><div class="stat-val amber" id="st-avoid">—</div></div>
+      <div class="stat"><div class="stat-label">정확도 향상</div><div class="stat-val" id="st-acc">—</div></div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">맞춤 예측 적용 내역</div>
+    </div>
+    <div class="diff-list" id="diff-list">
+      <div style="font-size:11px;color:var(--text3);padding:4px">분석 후 표시됩니다</div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">목격 제보 <span id="report-count" style="color:var(--purple)">0건</span></div>
+    </div>
+    <div class="report-list" id="report-list">
+      <div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">제보 없음</div>
+    </div>
+
+    <div class="panel-section">
+      <div class="section-title">지형 레이어</div>
+    </div>
+    <div class="legend-grid">
+      <div class="lg"><div class="ld" style="background:rgba(248,113,113,0.5)"></div>오르막길</div>
+      <div class="lg"><div class="ld" style="background:rgba(251,191,36,0.5)"></div>계단구간</div>
+      <div class="lg"><div class="ld" style="background:rgba(40,40,35,0.8);border:1px solid #555"></div>가로등없음</div>
+      <div class="lg"><div class="ld" style="background:rgba(100,100,100,0.6)"></div>통행불가</div>
+      <div class="lg"><div class="ld" style="background:rgba(96,165,250,0.3)"></div>일반 반경</div>
+      <div class="lg"><div class="ld" style="background:rgba(74,222,128,0.3)"></div>맞춤 반경</div>
+      <div class="lg"><div class="ld" style="background:#fbbf24"></div>맞춤 경로</div>
+      <div class="lg"><div class="ld" style="background:#a78bfa"></div>목격 제보</div>
+    </div>
+
+    <div class="info-bar" id="info-bar">SYSTEM READY — 영상을 업로드하거나 케이스를 선택하세요</div>
+  </div>
+</div>
+
+<script>
+// ── 이문동 실제 지형 데이터 (좌표는 캔버스 비율 기반) ──
+// 중심: 외대앞역 근처 (cx, cy)
+// 이문동 특성: 경희대 후문 방향 언덕, 신이문역 주변 계단, 이문시장 골목
+
+const TERRAIN = [
+  // 오르막길 (경희대 후문 방향 언덕)
+  {type:'slope', rx:90, ry:45, ox:0.22, oy:-0.28, label:'경희대 방향\n오르막'},
+  {type:'slope', rx:55, ry:30, ox:-0.25, oy:-0.32, label:'이문고개\n오르막'},
+  // 계단
+  {type:'stair', rx:22, ry:22, ox:0.32, oy:0.18, label:'계단'},
+  {type:'stair', rx:18, ry:18, ox:-0.28, oy:0.30, label:'계단'},
+  {type:'stair', rx:16, ry:16, ox:0.10, oy:-0.38, label:'계단'},
+  // 가로등 없는 구역 (이문시장 뒷골목)
+  {type:'dark', rx:50, ry:28, ox:-0.35, oy:0.05, label:'가로등\n없음'},
+  {type:'dark', rx:35, ry:22, ox:0.28, oy:-0.18, label:'가로등\n없음'},
+  // 통행 불가
+  {type:'block', rx:18, ry:18, ox:0.15, oy:0.28, label:'통행\n불가'},
+  {type:'block', rx:14, ry:14, ox:-0.18, oy:-0.20, label:'통행\n불가'},
+  {type:'block', rx:20, ry:14, ox:0.38, oy:-0.08, label:'공사\n구간'},
+];
+
+const TERRAIN_STYLE = {
+  slope: {fill:'rgba(248,113,113,0.18)', stroke:'rgba(248,113,113,0.5)'},
+  stair: {fill:'rgba(251,191,36,0.35)', stroke:'rgba(251,191,36,0.7)'},
+  dark:  {fill:'rgba(20,20,15,0.55)', stroke:'rgba(80,80,60,0.4)'},
+  block: {fill:'rgba(100,100,100,0.55)', stroke:'rgba(140,140,140,0.5)'},
+};
+
+const CASES = [
+  {
+    label:'치매 노인 (절뚝거림)',
+    height:'168cm', stride:'42cm', speed:'1.6km/h',
+    gait:'우측 하지 불편 감지', build:'마름·노년', dir:'외대앞역 방향 (북서)',
+    speedVal:1.6, bias:-2.5, cusScale:0.5,
+    avoidSlope:true, avoidStair:true, avoidDark:false,
+    diffs:[
+      {c:'#f87171', t:'보행 이상(절뚝거림) → 이동 속도 60% 감소'},
+      {c:'#f87171', t:'계단 구간 자동 제외 → 평지 경로만 유효'},
+      {c:'#fbbf24', t:'오르막 경사 통과 불가 → 경희대 방향 회피'},
+      {c:'#60a5fa', t:'치매 패턴 → 외대앞역 등 익숙한 곳 편향'},
+    ]
+  },
+  {
+    label:'가출 청소년 (정상 보행)',
+    height:'172cm', stride:'71cm', speed:'4.8km/h',
+    gait:'정상', build:'보통 체형·청소년', dir:'신이문역 방향 (동남)',
+    speedVal:4.8, bias:0.5, cusScale:1.15,
+    avoidSlope:false, avoidStair:false, avoidDark:true,
+    diffs:[
+      {c:'#a78bfa', t:'청소년 패턴 → 집 반대 방향 최장 이동'},
+      {c:'#2a2a1f', t:'야간 이동 가중치 → 가로등 없는 골목 포함'},
+      {c:'#4ade80', t:'정상 보행 → 계단·경사 포함 전체 통과 가능'},
+      {c:'#60a5fa', t:'편의점·PC방 클러스터 근처 체류 가능성'},
+    ]
+  },
+  {
+    label:'지적 장애인 (짧은 보폭)',
+    height:'160cm', stride:'48cm', speed:'2.1km/h',
+    gait:'보폭 짧음, 느린 걸음', build:'보통 체형', dir:'이문시장 방향 (동)',
+    speedVal:2.1, bias:-0.1, cusScale:0.68,
+    avoidSlope:false, avoidStair:true, avoidDark:false,
+    diffs:[
+      {c:'#4ade80', t:'반복 경험 경로 → 이문시장 방향 편향'},
+      {c:'#f87171', t:'계단 회피 → 평지 골목 경로만 선택'},
+      {c:'#fbbf24', t:'짧은 보폭 감지 → 이동 거리 35% 감소'},
+    ]
+  }
+];
+
+let analyzed = false, profile = {}, reports = [], timerIv = null, animIv = null;
+let showGeneral = true, showCustom = true, showSearch = false, showReport = true;
+let currentHr = 2, caseIdx = -1, timerSec = 0;
+
+function toggleLayer(name) {
+  const map = {general:'showGeneral', custom:'showCustom', search:'showSearch', report:'showReport'};
+  const togMap = {general:'tog-general', custom:'tog-custom', search:'tog-search', report:'tog-report'};
+  const classMap = {general:'on', custom:'on amber', search:'on blue', report:'on purple'};
+  if(name==='general') showGeneral=!showGeneral;
+  else if(name==='custom') showCustom=!showCustom;
+  else if(name==='search') showSearch=!showSearch;
+  else showReport=!showReport;
+  const tog = document.getElementById(togMap[name]);
+  const isOn = name==='general'?showGeneral:name==='custom'?showCustom:name==='search'?showSearch:showReport;
+  tog.className = 'tog' + (isOn ? ' '+classMap[name] : '');
+  if(analyzed) drawMap();
+}
+
+function onHrChange(v) {
+  currentHr = +v;
+  document.getElementById('hr-val').textContent = v+'시간';
+  if(analyzed) animateExpand();
+}
+
+function startTimer() {
+  if(timerIv) clearInterval(timerIv);
+  timerSec = 0;
+  document.getElementById('status-dot').className = 'status-dot live';
+  document.getElementById('status-txt').textContent = 'TRACKING';
+  timerIv = setInterval(() => {
+    timerSec++;
+    const h = Math.floor(timerSec/3600), m = Math.floor((timerSec%3600)/60), s = timerSec%60;
+    document.getElementById('timer').textContent =
+      `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    if(timerSec >= 3600) {
+      document.getElementById('timer').style.color = '#fbbf24';
+    }
+  }, 1000);
+}
+
+function loadCase(idx) {
+  caseIdx = idx;
+  profile = CASES[idx];
+  analyzed = true;
+  reports = [];
+  document.getElementById('st-rep') && (document.getElementById('report-count').textContent = '0건');
+  document.getElementById('report-list').innerHTML = '<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">제보 없음</div>';
+  showResultUI();
+  startTimer();
+  animateExpand();
+}
+
+function startAnalyze() {
+  caseIdx = (caseIdx + 1) % CASES.length;
+  analyzed = false;
+  reports = [];
+  document.getElementById('report-count').textContent = '0건';
+  document.getElementById('report-list').innerHTML = '<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">제보 없음</div>';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('ai-result').style.display = 'none';
+  document.getElementById('btn-analyze').disabled = true;
+  startTimer();
+
+  const steps = [
+    '보행 패턴 분석 중...', '신장·보폭 추정 중...',
+    '체형 분류 중...', '이동 방향 감지 중...',
+    '지형 레이어 교차 분석 중...', '경로 예측 생성 중...'
+  ];
+  let i = 0;
+  const iv = setInterval(() => {
+    const pct = Math.round((i+1)/steps.length*100);
+    document.getElementById('progress-fill').style.width = pct+'%';
+    document.getElementById('progress-label').textContent = steps[i] || '완료';
+    i++;
+    if(i >= steps.length) { clearInterval(iv); setTimeout(() => { profile = CASES[caseIdx]; showResultUI(); }, 300); }
+  }, 350);
+}
+
+function showResultUI() {
+  const c = profile;
+  document.getElementById('r-height').textContent = c.height;
+  document.getElementById('r-stride').textContent = c.stride;
+  document.getElementById('r-speed').textContent = c.speed;
+  document.getElementById('r-gait').textContent = c.gait;
+  document.getElementById('r-build').textContent = c.build;
+  document.getElementById('r-dir').textContent = c.dir;
+  document.getElementById('ai-result').style.display = 'block';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.getElementById('btn-analyze').disabled = false;
+  analyzed = true;
+
+  document.getElementById('diff-list').innerHTML = c.diffs.map(d =>
+    `<div class="diff-item"><div class="diff-dot" style="background:${d.c}"></div><div class="diff-txt">${d.t}</div></div>`
+  ).join('');
+
+  animateExpand();
+}
+
+function clearReports() {
+  reports = [];
+  document.getElementById('report-count').textContent = '0건';
+  document.getElementById('report-list').innerHTML = '<div style="font-size:10px;color:var(--text3);font-family:var(--font-mono)">제보 없음</div>';
+  if(analyzed) drawMap();
+}
+
+function animateExpand() {
+  if(animIv) clearInterval(animIv);
+  let step = 0, total = 24;
+  animIv = setInterval(() => {
+    step++;
+    drawMap(step/total);
+    if(step >= total) clearInterval(animIv);
+  }, 25);
+}
+
+document.getElementById('map').addEventListener('click', function(e) {
+  if(!analyzed) return;
+  const rect = this.getBoundingClientRect();
+  const scaleX = this.offsetWidth / rect.width;
+  const scaleY = this.offsetHeight / rect.height;
+  const x = (e.clientX - rect.left) * scaleX;
+  const y = (e.clientY - rect.top) * scaleY;
+  const ts = new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  reports.push({x, y, ts});
+  document.getElementById('report-count').textContent = reports.length+'건';
+  const rl = document.getElementById('report-list');
+  const lat = (37.5893 + (0.5 - y/this.offsetHeight)*0.012).toFixed(4);
+  const lng = (127.0572 + (x/this.offsetWidth - 0.5)*0.014).toFixed(4);
+  const item = document.createElement('div');
+  item.className = 'report-item';
+  item.innerHTML = `<span class="report-coord">${lat}, ${lng}</span><span class="report-time">${ts}</span>`;
+  if(rl.querySelector('div[style]')) rl.innerHTML = '';
+  rl.prepend(item);
+  drawMap();
+});
+
+function drawMap(animT) {
+  const t = animT === undefined ? 1 : animT;
+  const cv = document.getElementById('map');
+  const W = cv.offsetWidth, H = cv.offsetHeight;
+  if(!W || !H) { requestAnimationFrame(() => drawMap(animT)); return; }
+  cv.width = W * (devicePixelRatio||1);
+  cv.height = H * (devicePixelRatio||1);
+  const ctx = cv.getContext('2d');
+  ctx.scale(devicePixelRatio||1, devicePixelRatio||1);
+  const cx = W/2, cy = H/2;
+
+  // 배경 지도
+  ctx.fillStyle = '#0d140d';
+  ctx.fillRect(0,0,W,H);
+
+  // 도로 그리드 (이문동 도로망)
+  ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+  ctx.lineWidth = 8;
+  // 주요 도로
+  for(let x=0; x<W; x+=80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0; y<H; y+=80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // 골목
+  ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+  ctx.lineWidth = 3;
+  for(let x=40; x<W; x+=80) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=40; y<H; y+=80) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // 지형 레이어
+  TERRAIN.forEach(l => {
+    const px = cx + l.ox * Math.min(W,H), py = cy + l.oy * Math.min(W,H);
+    const st = TERRAIN_STYLE[l.type];
+    const avoided = (l.type==='slope' && profile.avoidSlope) ||
+                    (l.type==='stair' && profile.avoidStair) ||
+                    (l.type==='dark'  && profile.avoidDark);
+
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.scale(l.rx/24, l.ry/24);
+    ctx.beginPath();
+    ctx.arc(0,0,24,0,Math.PI*2);
+    ctx.fillStyle = avoided ? st.fill.replace(/[\d.]+\)$/, '0.35)') : st.fill;
+    ctx.fill();
+    ctx.strokeStyle = st.stroke;
+    ctx.lineWidth = 24/l.rx;
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = avoided ? '#f87171' : '#6a8a6a';
+    ctx.font = `${avoided?'500 ':''}9px "IBM Plex Mono"`;
+    ctx.textAlign = 'center';
+    const lines = l.label.split('\n');
+    lines.forEach((line, i) => ctx.fillText(line, px, py + (i-lines.length/2+0.7)*11));
+
+    if(avoided) {
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillStyle = '#f87171';
+      ctx.fillText('✕', px + l.rx - 3, py - l.ry + 9);
+    }
+  });
+
+  if(!analyzed) {
+    // 중앙 마커만
+    ctx.beginPath(); ctx.arc(cx,cy,8,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(248,113,113,0.3)'; ctx.fill();
+    return;
+  }
+
+  const c = profile;
+  const baseR = Math.min(W,H) * 0.34;
+  const genR = baseR * (currentHr/2)**0.62 * t;
+  const cusR = baseR * c.cusScale * (currentHr/2)**0.62 * t;
+
+  // 일반 예측 반경
+  if(showGeneral) {
+    ctx.beginPath(); ctx.arc(cx,cy,genR,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(96,165,250,0.06)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(96,165,250,0.5)'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([8,5]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(96,165,250,0.5)';
+    ctx.font = '9px "IBM Plex Mono"'; ctx.textAlign = 'center';
+    ctx.fillText('일반 반경 '+(genR/46).toFixed(1)+'km', cx, cy - genR - 6);
+  }
+
+  // 맞춤 예측 반경
+  if(showCustom) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1, c.avoidSlope ? 0.6 : 0.8);
+    ctx.beginPath(); ctx.arc(0,0,cusR,0,Math.PI*2);
+    ctx.fillStyle = 'rgba(74,222,128,0.08)'; ctx.fill();
+    ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2;
+    ctx.stroke(); ctx.restore();
+    ctx.fillStyle = '#4ade80';
+    ctx.font = '9px "IBM Plex Mono"'; ctx.textAlign = 'left';
+    ctx.fillText('맞춤 '+(cusR/46).toFixed(1)+'km', cx + cusR*0.7 + 6, cy);
+  }
+
+  // 목격 제보
+  if(showReport && reports.length > 0) {
+    reports.forEach((r) => {
+      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(r.x, r.y);
+      ctx.strokeStyle = 'rgba(167,139,250,0.35)'; ctx.lineWidth = 1;
+      ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([]);
+      ctx.beginPath(); ctx.arc(r.x, r.y, 7, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(167,139,250,0.7)'; ctx.fill();
+      ctx.font = '500 9px "IBM Plex Mono"'; ctx.fillStyle = '#e9e3ff';
+      ctx.textAlign = 'center'; ctx.fillText('제보', r.x, r.y+3);
+    });
+  }
+
+  // 맞춤 예측 경로
+  if(showCustom) {
+    let ang = c.bias;
+    if(reports.length > 0) {
+      // 여러 제보의 평균 방향 계산 (오버피팅 방지)
+      let sumDx = 0, sumDy = 0;
+      reports.forEach(r => { sumDx += r.x - cx; sumDy += r.y - cy; });
+      const avgAng = Math.atan2(sumDy / reports.length, sumDx / reports.length);
+      // 제보 수 많을수록 제보 방향으로 수렴 (최대 80%)
+      const reportWeight = Math.min(0.3 + reports.length * 0.12, 0.8);
+      ang = c.bias * (1 - reportWeight) + avgAng * reportWeight;
+    }
+    const pts = [];
+    for(let i=1; i<=5; i++) {
+      const tt = i/5;
+      const j = (i < 5) ? (c.avoidStair ? 3 : 8) : 0; // 끝점은 jitter 없음
+      pts.push([cx+Math.cos(ang)*cusR*tt+(Math.random()-.5)*j, cy+Math.sin(ang)*cusR*tt+(Math.random()-.5)*j]);
+    }
+    ctx.beginPath(); ctx.moveTo(cx,cy);
+    pts.forEach(p => ctx.lineTo(p[0],p[1]));
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2.5; ctx.stroke();
+    pts.forEach((p,i) => {
+      ctx.beginPath(); ctx.arc(p[0],p[1],i===pts.length-1?7:3.5,0,Math.PI*2);
+      ctx.fillStyle = i===pts.length-1 ? '#fbbf24' : 'rgba(251,191,36,0.6)'; ctx.fill();
+    });
+    ctx.fillStyle = '#fbbf24'; ctx.font = '500 10px "IBM Plex Mono"';
+    ctx.textAlign = 'left';
+    ctx.fillText('예측 끝점', pts[pts.length-1][0]+10, pts[pts.length-1][1]);
+  }
+
+  // 수색대 배치
+  if(showSearch && analyzed) {
+    const ang = c.bias;
+    const zones = [
+      {ox: Math.cos(ang)*cusR*0.7, oy: Math.sin(ang)*cusR*0.7, label:'수색1팀'},
+      {ox: Math.cos(ang+0.7)*cusR*0.5, oy: Math.sin(ang+0.7)*cusR*0.5, label:'수색2팀'},
+      {ox: Math.cos(ang-0.6)*cusR*0.55, oy: Math.sin(ang-0.6)*cusR*0.55, label:'수색3팀'},
+    ];
+    zones.forEach(z => {
+      ctx.beginPath(); ctx.arc(cx+z.ox, cy+z.oy, 16, 0, Math.PI*2);
+      ctx.fillStyle = 'rgba(74,222,128,0.18)'; ctx.fill();
+      ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#86efac'; ctx.font = '500 9px "IBM Plex Mono"';
+      ctx.textAlign = 'center';
+      ctx.fillText(z.label, cx+z.ox, cy+z.oy+3);
+    });
+  }
+
+  // 마지막 목격 (외대앞역 근처)
+  ctx.beginPath(); ctx.arc(cx,cy,10,0,Math.PI*2);
+  ctx.fillStyle = '#f87171'; ctx.fill();
+  ctx.beginPath(); ctx.arc(cx,cy,18,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(248,113,113,0.35)'; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx,cy,26,0,Math.PI*2);
+  ctx.strokeStyle = 'rgba(248,113,113,0.15)'; ctx.lineWidth = 2; ctx.stroke();
+
+  ctx.fillStyle = '#f87171'; ctx.font = '500 10px "IBM Plex Mono"';
+  ctx.textAlign = 'left'; ctx.fillText('마지막 목격 (외대앞역)', cx+22, cy-4);
+  ctx.fillStyle = 'rgba(248,113,113,0.5)'; ctx.font = '9px "IBM Plex Mono"';
+  ctx.fillText('이문동 107-1 일대', cx+22, cy+8);
+
+  // 통계 업데이트
+  const avoidCnt = TERRAIN.filter(l =>
+    (l.type==='slope'&&c.avoidSlope)||(l.type==='stair'&&c.avoidStair)||(l.type==='dark'&&c.avoidDark)).length;
+  document.getElementById('st-gen').textContent = (genR/46).toFixed(1)+'km';
+  document.getElementById('st-cus').textContent = (cusR/46).toFixed(1)+'km';
+  document.getElementById('st-avoid').textContent = avoidCnt+'곳';
+  document.getElementById('st-acc').textContent = '+'+Math.min(Math.round((1-c.cusScale)*100+reports.length*7+18),72)+'%';
+  document.getElementById('info-bar').textContent =
+    `[${c.label}] ${currentHr}h 경과 | 보폭 ${c.stride} · ${c.gait} | 회피 ${avoidCnt}곳 · 제보 ${reports.length}건 반영`;
+}
+
+window.addEventListener('resize', () => { if(analyzed) drawMap(); });
+window.addEventListener('load', () => { drawMap(); });
+</script>
+</body>
+</html>
